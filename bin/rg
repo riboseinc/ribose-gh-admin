@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+
+require 'github_api'
+# require 'octokit'
+
+missing_vars = %w[GITHUB_TOKEN GITHUB_USER].reduce([]) do |acc, var|
+  acc << var if ENV[var].nil?
+  acc
+end
+
+unless missing_vars.empty?
+  warn "The following env vars are missing: #{missing_vars.join(', ')}. Aborting."
+  exit 2
+end
+
+def gh
+  @gh = Github.new oauth_token: ENV['GITHUB_TOKEN'], user: user
+  # @gh = Octokit::Client.new(netrc: true).tap do |l| l.login end
+end
+
+def user
+  ENV['GITHUB_USER']
+end
+
+class Test
+  class << self
+    def org
+      warn 'your-org-name-for-testing'
+    end
+  end
+end
+
+# Use this, then get its "id", "name",
+def create_repo(org: Test.org, name:, description: '')
+  (gh.repos.create org: org, name: name, description: description).to_h
+end
+
+# NOTE: 'user:' works but 'org:' doesn't.
+def get_repo(org: Test.org, name:)
+  gh.repos.get user: org, repo: name
+end
+
+# https://github.com/piotrmurach/github/blob/14a7574feb703e1352349ddd7e9b7afeb7dab58f/lib/github_api/client/orgs/teams.rb
+def add_repo_to_org_team_by_team_id(repo:, team:, org:)
+  gh.orgs.teams.add_repo team, org, repo
+end
+
+def add_repo_to_org_team_by_team_name(repo:, team:, org:)
+  add_repo_to_team(repo: repo, org: org, team: get_team(team: team, org: org)['id'])
+end
+
+def list_org_teams(org:)
+  gh.orgs.teams.list org: org
+end
+
+# NOTE: 'user:' works but 'org:' doesn't.
+def list_org_repos(org:)
+  # (gh.repos.all org: org).to_a
+  (gh.repos.all user: org).to_a
+end
+
+def get_team(team:, org:)
+  (list_org_teams org: org).body.find { |h| h['slug'] == team }
+end
+
+def get_staff_team(org:)
+  get_team(team: 'staff', org: org)
+end
+
+def default_team_name
+  'staff'
+end
+
+def show_usage
+  puts <<~EOM
+  Usage: #{$0} org_name repo_name [team_name]
+         # Adds 'team_name' to 'repo_name' (under 'org_name')
+
+         org_name     - Github organization name
+         repo_name    - repository name
+         team_name    - name of team. (default: '#{default_team_name}')
+
+  You'll also need to generate Github API tokens and set env vars:
+
+    1) Make sure GITHUB_TOKEN & GITHUB_USER are set.
+    2) Make sure GITHUB_TOKEN has admin:org scope (check its box during token
+       generation in Web UI).
+
+  EOM
+end
+
+def main
+  if ARGV.length < 2
+    show_usage
+    exit 1
+  end
+
+  org_name  = ARGV[0]
+  repo_name = ARGV[1]
+  team_name = ARGV[2] || default_team_name
+
+  add_repo_to_org_team_by_team_name(repo: repo_name, team: team_name, org: org_name)
+  # binding.pry if defined? PRY
+end
+
+# TODO: DELETEME. reload call for convenience / testing
+def rl
+  load __FILE__
+end
+
+if __FILE__ == $0
+  main
+else
+  puts "Hello"
+end
+
+__END__
