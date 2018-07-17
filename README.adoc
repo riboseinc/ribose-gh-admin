@@ -1,0 +1,44 @@
+= Ribose Github Admin
+
+This script has two main functions:
+
+. Create a repository under an organization under your control
+. Assign an admin team for the specified repo
+
+== Installation
+
+Clone this repository and add its `bin` to your `$PATH`.
+
+[source,console]
+----
+$ git clone https://github.com/riboseinc/ribose-gh-admin
+... ...
+$ export PATH=ribose-gh-admin/bin:${PATH}
+----
+
+== Usage
+
+[source,console]
+----
+$ ribose-gh-admin
+Usage: ribose-gh-admin assign org_name repo_name [team_name]
+       # Adds 'team_name' to 'repo_name' (under 'org_name')
+
+       ribose-gh-admin create org_name repo_name team_name [description]
+       # Creates a repo ('repo_name') with optional 'description' under
+       # 'team_name', under 'org_name'
+
+       org_name     - Github organization name
+       repo_name    - repository name
+       team_name    - name of team. (default: 'staff')
+
+You'll also need to generate Github API tokens and set env vars:
+
+  1) Make sure GITHUB_TOKEN & GITHUB_USER are set.
+  2) Make sure GITHUB_TOKEN has admin:org scope (check its box during token
+     generation in Web UI).
+----
+
+== Acknowledgments
+
+This script uses the excellent https://github.com/piotrmurach/github[`github_api`] gem.
