@@ -3,6 +3,32 @@
 require 'github_api'
 # require 'octokit'
 
+def default_team_name
+  'staff'
+end
+
+def show_usage
+  puts <<~EOM
+  Usage: #{$0} assign org_name repo_name [team_name]
+         # Adds 'team_name' to 'repo_name' (under 'org_name')
+
+         #{$0} create org_name repo_name team_name [description]
+         # Creates a repo ('repo_name') with optional 'description' under
+         # 'team_name', under 'org_name'
+
+         org_name     - Github organization name
+         repo_name    - repository name
+         team_name    - name of team. (default: '#{default_team_name}')
+
+  You'll also need to generate Github API tokens and set env vars:
+
+    1) Make sure GITHUB_TOKEN & GITHUB_USER are set.
+    2) Make sure GITHUB_TOKEN has admin:org scope (check its box during token
+       generation in Web UI).
+
+  EOM
+end
+
 missing_vars = %w[GITHUB_TOKEN GITHUB_USER].reduce([]) do |acc, var|
   acc << var if ENV[var].nil?
   acc
@@ -10,6 +36,8 @@ end
 
 unless missing_vars.empty?
   warn "The following env vars are missing: #{missing_vars.join(', ')}. Aborting."
+  puts
+  show_usage
   exit 2
 end
 
@@ -41,12 +69,12 @@ def get_repo(org: Test.org, name:)
 end
 
 # https://github.com/piotrmurach/github/blob/14a7574feb703e1352349ddd7e9b7afeb7dab58f/lib/github_api/client/orgs/teams.rb
-def add_repo_to_org_team_by_team_id(repo:, team:, org:)
-  gh.orgs.teams.add_repo team, org, repo
+def add_repo_to_org_team_by_team_id(repo:, team:, org:, permission: 'admin')
+  gh.orgs.teams.add_repo team, org, repo, permission: permission
 end
 
-def add_repo_to_org_team_by_team_name(repo:, team:, org:)
-  add_repo_to_team(repo: repo, org: org, team: get_team(team: team, org: org)['id'])
+def add_repo_to_org_team_by_team_name(repo:, team:, org:, permission:)
+  add_repo_to_org_team_by_team_id(repo: repo, org: org, team: get_team(team: team, org: org)['id'], permission: permission)
 end
 
 def list_org_teams(org:)
@@ -67,39 +95,38 @@ def get_staff_team(org:)
   get_team(team: 'staff', org: org)
 end
 
-def default_team_name
-  'staff'
-end
-
-def show_usage
-  puts <<~EOM
-  Usage: #{$0} org_name repo_name [team_name]
-         # Adds 'team_name' to 'repo_name' (under 'org_name')
-
-         org_name     - Github organization name
-         repo_name    - repository name
-         team_name    - name of team. (default: '#{default_team_name}')
-
-  You'll also need to generate Github API tokens and set env vars:
-
-    1) Make sure GITHUB_TOKEN & GITHUB_USER are set.
-    2) Make sure GITHUB_TOKEN has admin:org scope (check its box during token
-       generation in Web UI).
-
-  EOM
-end
-
 def main
-  if ARGV.length < 2
+  if ARGV.length < 3
     show_usage
     exit 1
   end
 
-  org_name  = ARGV[0]
-  repo_name = ARGV[1]
-  team_name = ARGV[2] || default_team_name
+  action = ARGV[0]
 
-  add_repo_to_org_team_by_team_name(repo: repo_name, team: team_name, org: org_name)
+  case action
+  when 'assign', 'create' then ARGV.shift
+  else
+    show_usage
+    exit 1
+  end
+
+  org_name    = ARGV[0]
+  repo_name   = ARGV[1]
+  team_name   = ARGV[2] || default_team_name
+  description = ARGV[3] || ''
+
+  team_permission = 'admin'
+
+  case action
+  # when 'assign' then
+  #   add_repo_to_org_team_by_team_name(repo: repo_name, team: team_name, org: org_name, permission: team_permission)
+  when 'create' then
+    create_repo(org: org_name, name: repo_name, description: description)
+    # add_repo_to_org_team_by_team_name(repo: repo_name, team: team_name, org: org_name, permission: team_permission)
+  end
+
+  add_repo_to_org_team_by_team_name(repo: repo_name, team: team_name, org: org_name, permission: team_permission)
+
   # binding.pry if defined? PRY
 end
 
